@@ -4,10 +4,21 @@ Express + TypeScript API for a nested folder/file tree stored in PostgreSQL. A f
 
 ## Prerequisites
 
-- Node.js 22+ and npm
-- PostgreSQL 16+ (local install, or Docker — see below)
-- Docker — optional; used here only to run Postgres via Compose
-- Docker Compose v2 (`docker compose`) — optional; same as Docker above. The parent repo also uses Compose for the full HTTPS stack.
+- Node.js 22+
+- npm
+- Docker
+- Docker Compose
+
+**Node.js** and **npm** are required to install, migrate, run in debug mode, and run tests.
+
+**Docker** and **Docker Compose** (v2: `docker compose`) are optional if you already have PostgreSQL 16+ on `localhost:5432`. If you do not, use them to run Postgres:
+
+- From the **parent repo** (usual path): `npm run postgres:up` — Docker Compose file `postgres-for-development.yml`.
+- From **this directory** (this submodule on its own): `docker compose up -d` — this directory’s `docker-compose.yml`.
+
+Same image and credentials (`mydb` / `myuser` / `mypassword` on `localhost:5432`). **Do not run both** — they both bind 5432.
+
+The parent repo’s `docker-compose.yml` is the full HTTPS stack (Traefik + Postgres + migrate + API + client). That path needs Docker and Docker Compose only (no Node on the host). It does **not** publish Postgres to the host.
 
 ## Setup
 
@@ -25,16 +36,7 @@ CLIENT_URL=http://localhost:5173
 DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/mydb
 ```
 
-`DATABASE_URL` and `CLIENT_URL` are required. The process refuses to start if they are missing. Tests load `.env.test` instead (committed; points at `mydb_test` with the local compose credentials).
-
-Local Postgres 16 on `localhost:5432` (`mydb` / `myuser` / `mypassword`). There are two Compose files that start it; **do not run both** (they both bind 5432):
-
-- From the **parent repo** (usual path): `npm run postgres:up` (`postgres-for-development.yml`).
-- From **this directory** (this submodule on its own): `docker compose up -d` (this directory’s `docker-compose.yml`). Same image and credentials.
-
-Copy `.env.example` to `.env` as-is, or point `DATABASE_URL` at `mydb`. Tests create `mydb_test` themselves if it is missing.
-
-The parent repo’s `docker-compose.yml` is the full deploy stack (Traefik + API + client). It does **not** publish Postgres to the host.
+`DATABASE_URL` and `CLIENT_URL` are required. The process refuses to start if they are missing. Tests load `.env.test` instead (committed; points at `mydb_test` with the local Compose credentials). Copy `.env.example` to `.env` as-is if you use the Compose Postgres above. Tests create `mydb_test` themselves if it is missing.
 
 ## Running (debug)
 
@@ -47,7 +49,7 @@ npm run dev
 
 That compiles TypeScript in watch mode and restarts `dist/main.js` after a successful compile. The API listens on `PORT` (default `3000`).
 
-From the parent repo:
+From the parent repo (checks that the Docker Compose Postgres container is running first):
 
 ```bash
 npm run dev:server
@@ -60,7 +62,7 @@ npm run build
 npm start
 ```
 
-Lint / tests:
+Lint / tests (Postgres must be up — Docker Compose as above, or your own instance):
 
 ```bash
 npm run lint
@@ -68,7 +70,7 @@ npm test
 npm run test:stress
 ```
 
-Tests use `.env.test`, not `.env`. Default `DATABASE_URL` is `mydb_test` (same user/password as docker compose). The runner refuses a database whose name does not end in `_test`, creates that database if needed, applies pending migrations, then truncates `folders` and `files` between cases. Running tests while `npm run dev` is up will not wipe app data.
+Tests use `.env.test`, not `.env`. Default `DATABASE_URL` is `mydb_test` (same user/password as Docker Compose). The runner refuses a database whose name does not end in `_test`, creates that database if needed, applies pending migrations, then truncates `folders` and `files` between cases. Running tests while `npm run dev` is up will not wipe app data.
 
 `npm test` always fires 50 concurrent unique `POST /folders` (at root and under one parent) and expects every request to return 201. `npm run test:stress` ramps 10 → 400 in-flight creates and prints created/failed, elapsed time, req/s, and p50/p95 latency. That is one Node process talking to Postgres through the default `pg` pool (max 10 connections); extra requests queue on the pool. It is not a multi-host production load test.
 
@@ -94,11 +96,11 @@ Existing migrations:
 
 ## Docker
 
-This directory's `Dockerfile` compiles TypeScript and runs `node ./dist/main.js`. It does **not** bake env files into the image — pass `DATABASE_URL`, `CLIENT_URL`, and `PORT` at runtime.
+This directory's `Dockerfile` compiles TypeScript and runs `node ./dist/main.js`. It does **not** bake env files into the image — pass `DATABASE_URL`, `CLIENT_URL`, and `PORT` at runtime (Docker Compose in the parent repo does this).
 
-This directory's `docker-compose.yml` is local Postgres only.
+This directory's `docker-compose.yml` is local Postgres only (needs Docker and Docker Compose).
 
-The parent repo's `docker-compose.yml` is the deploy path: Postgres, a one-shot migrate container, the API, and the client behind Traefik. Postgres stays on the internal network.
+The parent repo's `docker-compose.yml` is the deploy path (needs Docker and Docker Compose): Postgres, a one-shot migrate container, the API, and the client behind Traefik. Postgres stays on the internal network.
 
 ## API
 

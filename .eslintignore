@@ -1,0 +1,16 @@
+# Ignore all files in the node_modules folder
+node_modules/
+
+# Ignore build/output directories
+dist/
+build/
+
+# Ignore specific file types
+*.min.js
+*.test.js
+
+# Ignore specific files
+config/legacy-config.js
+
+# Ignore specific directories and files in paths
+public/assets/*.js

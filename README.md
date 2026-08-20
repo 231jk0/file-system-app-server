@@ -4,8 +4,10 @@ Express + TypeScript API for a nested folder/file tree stored in PostgreSQL. A f
 
 ## Prerequisites
 
-- Node.js 22+
-- PostgreSQL 16+
+- Node.js 22+ and npm
+- PostgreSQL 16+ (local install, or Docker — see below)
+- Docker — optional; used here only to run Postgres via Compose
+- Docker Compose v2 (`docker compose`) — optional; same as Docker above. The parent repo also uses Compose for the full HTTPS stack.
 
 ## Setup
 
@@ -25,15 +27,14 @@ DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/mydb
 
 `DATABASE_URL` and `CLIENT_URL` are required. The process refuses to start if they are missing. Tests load `.env.test` instead (committed; points at `mydb_test` with the local compose credentials).
 
-A local Postgres instance (from this directory):
+Local Postgres 16 on `localhost:5432` (`mydb` / `myuser` / `mypassword`). There are two Compose files that start it; **do not run both** (they both bind 5432):
 
-```bash
-docker compose up -d
-```
+- From the **parent repo** (usual path): `npm run postgres:up` (`postgres-for-development.yml`).
+- From **this directory** (this submodule on its own): `docker compose up -d` (this directory’s `docker-compose.yml`). Same image and credentials.
 
-That starts Postgres 16 on `localhost:5432` (`mydb` / `myuser` / `mypassword` in this directory's `docker-compose.yml`). Copy `.env.example` to `.env` as-is, or point `DATABASE_URL` at `mydb`. Tests create `mydb_test` themselves if it is missing.
+Copy `.env.example` to `.env` as-is, or point `DATABASE_URL` at `mydb`. Tests create `mydb_test` themselves if it is missing.
 
-The parent repo's `docker-compose.yml` is the full deploy stack (Traefik + API + client). It does **not** publish Postgres to the host.
+The parent repo’s `docker-compose.yml` is the full deploy stack (Traefik + API + client). It does **not** publish Postgres to the host.
 
 ## Running (debug)
 
@@ -109,12 +110,12 @@ Base path: `/api/v1`. JSON bodies are capped at 32kb. Unknown routes return `{ "
 | POST | `/folders` | `{ name, parentId? }` → 201 |
 | DELETE | `/folders/:folderId` | Cascade delete; 200 + `{ message }` (the client uses the body) |
 | POST | `/folders/:folderId/files` | Create a file in a folder |
-| GET | `/folders/:folderId/files/search?name=` | Exact name in that folder |
+| GET | `/folders/:folderId/files/search?name=` | Exact name in that folder (API only; the UI search box uses prefix) |
 | GET | `/folders/:folderId/files/search/prefix?q=` | Prefix typeahead, top 10 |
 | POST | `/files` | `{ name, folderId? }` — omit `folderId` for root |
 | GET | `/files/:fileId` | |
 | DELETE | `/files/:fileId` | 200 + `{ message }` |
-| GET | `/files/search?name=` | Exact name globally |
+| GET | `/files/search?name=` | Exact name globally (API only; the UI search box uses prefix) |
 | GET | `/files/search/prefix?q=` | Prefix typeahead globally, top 10 |
 | GET | `/files/search/prefix?q=&root=true` | Prefix typeahead among root files only |
 
@@ -152,6 +153,7 @@ Controllers validate with Zod and use the parsed values (including trimmed names
 - **Files are names only.** No bytes, MIME types, or versions.
 - **A file and a folder may share a name in the same directory.** Uniqueness is per table (`files` vs `folders`), which matches the brief. A real OS usually forbids that.
 - **Folder listing is unbounded.** `GET /browse` returns every child. Fine for the current UI; a large directory would need pagination.
+- **The UI search box is prefix typeahead** (top 10, in-folder or global). Exact-name search exists on the API (`GET .../search?name=`) and is not wired in the client.
 - **Prefix search is case-sensitive SQL `LIKE`** with a `text_pattern_ops` index. That matches “starts with” at scale; it is not fuzzy or case-insensitive.
 - **No rename/move HTTP API.** The path trigger is still written so a later rename would keep descendants consistent.
 - **DELETE returns 200 + a message** rather than 204, because the existing client reads a JSON body.
